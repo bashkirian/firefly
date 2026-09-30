@@ -277,6 +277,7 @@ func (nm *namespaceManager) startV1NamespaceIfRequired(nsToCheck *namespace) err
 		if err == nil {
 			log.L(nm.ctx).Infof("Namespace %s started", core.LegacySystemNamespace)
 			systemNS.started = true
+			systemNS.orchestrator.Events().StartDispatching()
 		}
 		return err
 	}
@@ -315,6 +316,9 @@ func (nm *namespaceManager) namespaceStarter(ns *namespace) {
 			ns.started = true
 			ns.initError = ""
 			nm.nsMux.Unlock()
+
+			// Now the namespace is ready to serve API requests, let subscribers start receiving events
+			ns.orchestrator.Events().StartDispatching()
 
 			// Notify all the event plugins of the start, so they can re-register their subs.
 			for _, ep := range ns.plugins.Events {
@@ -1054,7 +1058,8 @@ func (nm *namespaceManager) Orchestrator(ctx context.Context, ns string, include
 	defer nm.nsMux.Unlock()
 	// Only return started namespaces from this call
 	if namespace, ok := nm.namespaces[ns]; ok && namespace != nil {
-		if !includeInitializing && !namespace.started {
+		// The orchestrator is not created until the namespace begins to start, which can be after the API is listening
+		if (!includeInitializing && !namespace.started) || namespace.orchestrator == nil {
 			return nil, i18n.NewError(ctx, coremsgs.MsgNamespaceInitializing, ns)
 		}
 		return namespace.orchestrator, nil

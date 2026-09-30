@@ -66,6 +66,7 @@ type EventManager interface {
 	QueueBatchRewind(batchID *fftypes.UUID)
 	ResolveTransportAndCapabilities(ctx context.Context, transportName string) (string, *events.Capabilities, error)
 	Start() error
+	StartDispatching()
 	WaitStop()
 
 	// Bound blockchain callbacks
@@ -189,6 +190,12 @@ func (em *eventManager) Start() (err error) {
 		}
 	}
 	return err
+}
+
+// StartDispatching allows durable subscriptions to begin delivering events. Start loads
+// the subscriptions, but holds back delivery until this is called.
+func (em *eventManager) StartDispatching() {
+	em.subManager.startDispatching()
 }
 
 func (em *eventManager) NewEvents() chan<- int64 {
